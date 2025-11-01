@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  ai-report-agent:
+    build: .
+    container_name: ai-report-agent
+    ports:
+      - "8002:8002"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always

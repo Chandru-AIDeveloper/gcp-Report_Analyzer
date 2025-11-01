@@ -1,0 +1,11 @@
+streamlit
+fastapi
+uvicorn
+pdfplumber
+pandas
+matplotlib
+scikit-learn
+langchain
+ollama
+groq
+openpyxl
