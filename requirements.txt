@@ -7,5 +7,5 @@ matplotlib
 scikit-learn
 langchain
 ollama
-groq
 openpyxl
+langchain_ollama

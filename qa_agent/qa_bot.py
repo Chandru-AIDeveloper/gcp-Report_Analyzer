@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
-from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -10,11 +10,11 @@ from langchain_core.messages import HumanMessage, AIMessage
 load_dotenv()
 
 # ------------------------------
-# Global LLM (Groq)
+# Global LLM (Ollama)
 # ------------------------------
-llm = ChatGroq(
-    api_key=os.getenv("GROQ_API_KEY"),
-    model="llama-3.1-8b-instant"
+llm = ChatOllama(
+    model="gemma",   # You can change to "llama3", "phi3", etc. depending on what’s installed
+    temperature=0.3
 )
 
 # ------------------------------
@@ -25,7 +25,9 @@ short_term_memory = ConversationBufferMemory(
     return_messages=True
 )
 
-
+# ------------------------------
+# Long-term memory (FAISS + Embeddings)
+# ------------------------------
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
 if os.path.exists("faiss_index"):
@@ -39,66 +41,67 @@ else:
     vectorstore.save_local("faiss_index")
 
 
-
 def get_answer(question: str, context: str) -> str:
     """
-    Generates an answer with short-term and long-term memory.
+    Generates an answer using Ollama with short-term and long-term memory.
     """
     try:
-        # Retrieve relevant long-term memory from FAISS
+        # --- Retrieve from long-term memory (FAISS) ---
         docs = vectorstore.similarity_search(question, k=2)
         long_term_context = "\n".join([d.page_content for d in docs])
-        
-        # Get chat history
+
+        # --- Get short-term memory ---
         chat_history_messages = short_term_memory.chat_memory.messages
         chat_history_text = ""
         if chat_history_messages:
             history_lines = []
-            for msg in chat_history_messages[-6:]:  # Last 3 exchanges
+            for msg in chat_history_messages[-6:]:  # Keep last few turns
                 if isinstance(msg, HumanMessage):
                     history_lines.append(f"User: {msg.content}")
                 elif isinstance(msg, AIMessage):
                     history_lines.append(f"Assistant: {msg.content}")
             chat_history_text = "\n".join(history_lines)
 
-        # Create prompt
+        # --- Create a smart prompt ---
         prompt = ChatPromptTemplate.from_template(
-            """You are a helpful AI assistant. Use the **conversation history**, 
-**long-term memory**, and **provided context** to answer the question. 
-If the answer cannot be found, say so clearly.
+            """
+            You are a helpful and knowledgeable AI assistant.
+            Use the **conversation history**, **long-term memory**, and **given context**
+            to answer the question accurately and clearly.
+            If the information isn't available, respond honestly that you don't know.
 
-### Conversation History:
-{chat_history}
+            ### Conversation History:
+            {chat_history}
 
-### Long-Term Memory:
-{long_memory}
+            ### Long-Term Memory:
+            {long_memory}
 
-### Context:
-{context}
+            ### Context:
+            {context}
 
-### Question:
-{question}
+            ### Question:
+            {question}
 
-### Answer:"""
+            ### Answer:
+            """
         )
-        
-        # Format prompt with all context
+
         formatted_prompt = prompt.format(
-            chat_history=chat_history_text or "No previous conversation",
-            long_memory=long_term_context,
-            context=context,
+            chat_history=chat_history_text or "No previous conversation.",
+            long_memory=long_term_context or "No relevant long-term memory.",
+            context=context or "No external context provided.",
             question=question
         )
-        
-        # Get response from LLM
+
+        # --- Query Ollama ---
         response = llm.invoke(formatted_prompt)
-        answer = response.content if hasattr(response, 'content') else str(response)
-        
-        # Save to short-term memory
+        answer = response.content if hasattr(response, "content") else str(response)
+
+        # --- Save in short-term memory ---
         short_term_memory.chat_memory.add_user_message(question)
         short_term_memory.chat_memory.add_ai_message(answer)
-        
-        # Store Q&A into long-term memory
+
+        # --- Add to long-term memory (FAISS) ---
         vectorstore.add_texts([f"Q: {question}\nContext: {context}\nA: {answer}"])
         vectorstore.save_local("faiss_index")
 
@@ -108,5 +111,3 @@ If the answer cannot be found, say so clearly.
         import traceback
         print(f"Error in get_answer: {traceback.format_exc()}")
         return f"Error generating answer: {str(e)}"
-    
-

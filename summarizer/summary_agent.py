@@ -1,7 +1,7 @@
 import os
 import json
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -11,16 +11,17 @@ load_dotenv()
 
 def generate_summary(data):
     """
-    Generate a summary + suggestions + chart data.
-    Handles large reports by using the map-reduce method.
+    Generate a summary + suggestions + chart data using Ollama.
+    Handles large reports via the map-reduce approach.
     """
 
-    llm = ChatGroq(
-        api_key=os.getenv("Groq_API_KEY"),
-        model="llama-3.1-8b-instant"
+    # ✅ Initialize Ollama LLM (Replace model name with your available local model)
+    llm = ChatOllama(
+        model="gemma",  # You can change this to 'llama3', 'llama3.1', etc.
+        temperature=0.3
     )
 
-    # --- Input Handling (from your original code) ---
+    # --- Input Handling ---
     if "raw_text" in data:
         report_input = data["raw_text"]
     elif "json_data" in data:
@@ -28,21 +29,16 @@ def generate_summary(data):
     else:
         raise ValueError("Input must include either 'raw_text' or 'json_data'.")
 
-    # --- Text Splitting (to prevent 413 error) ---
-    # We split the large report_input into smaller documents
-    # The Groq 8b model limit is high, but the TPM limit you hit was 6k.
-    # Let's use a conservative chunk size (e.g., 8000 chars) to be safe.
+    # --- Text Splitting (to avoid large context issues) ---
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=8000, 
+        chunk_size=8000,
         chunk_overlap=400
     )
     docs = [Document(page_content=chunk) for chunk in text_splitter.split_text(report_input)]
 
-    # If the text is small, we can skip map-reduce.
-    # We'll check if we only have 1 doc (chunk).
+    # --- Case 1: Small text (single chunk) ---
     if len(docs) == 1:
-        print("--- Input is small, running simple chain ---")
-        # Use your original template directly
+        print("--- Small input detected, running single prompt ---")
         final_prompt_template = ChatPromptTemplate.from_template(
             """
             You are an AI assistant that analyzes reports and provides concise summaries,
@@ -62,14 +58,13 @@ def generate_summary(data):
                - Each suggestion should start with a verb (e.g., "Improve", "Enhance").
                - **Bold key terms**.
 
-            3. **Chart Data Section** (very important):
-               - Output in the following exact format:
+            3. **Chart Data Section**:
+               - Output exactly in this format:
                  chart_type: pie
                  labels: ["Category1", "Category2", "Category3"]
                  values: [10, 20, 30]
-               - Pick meaningful categories and values from the report.
-               - Ensure labels and values count match.
-            
+               - Choose meaningful categories and values from the report.
+
             ### Final Output Format:
             #### Summary:
             - ...
@@ -83,17 +78,17 @@ def generate_summary(data):
             values: [...]
             """
         )
+
         chain = final_prompt_template | llm
         response = chain.invoke({"report": report_input})
         return response.content if hasattr(response, "content") else str(response)
 
-    # --- Map-Reduce for Large Text (if len(docs) > 1) ---
-    print(f"--- Input is large, running map-reduce with {len(docs)} chunks ---")
+    # --- Case 2: Large text (multiple chunks → map-reduce) ---
+    print(f"--- Large input detected, running map-reduce with {len(docs)} chunks ---")
 
-    # 1. "Map" Prompt: Summarizes each chunk individually.
     map_prompt_template = """
-    You are a helpful assistant. Summarize the following text snippet from a larger report,
-    focusing on key facts, figures, and important findings.
+    Summarize the following section from a large report,
+    focusing on key points, figures, and major findings.
 
     "{text}"
 
@@ -101,39 +96,30 @@ def generate_summary(data):
     """
     map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
 
-    # 2. "Reduce" Prompt: This is your original, detailed prompt.
-    # It will run *once* on the *combined summaries* from the map step.
     reduce_template = """
-    You are an AI assistant that analyzes reports and provides concise summaries,
-    actionable suggestions, and structured chart data.
+    You are an AI assistant that combines partial summaries into one comprehensive output.
 
-    ### Input Report:
-    You will be given a set of summaries from a larger report. Your job is to
-    synthesize these summaries into a final output.
-    
+    ### Partial Summaries:
     {text}
 
     ### Output Instructions:
-    Based *only* on the text provided above, generate the following:
+    Based *only* on the summaries above, generate:
 
     1. **Summary Section**:
        - Write 4–6 bullet points.
-       - Keep each point short, simple, and informative.
-       - **Bold important keywords**.
+       - Highlight **important terms**.
 
     2. **Suggestions Section**:
-       - Provide 3–5 practical and actionable suggestions.
-       - Each suggestion should start with a verb (e.g., "Improve", "Enhance").
-       - **Bold key terms**.
+       - 3–5 actionable improvements.
+       - Start each with a verb (e.g., "Optimize", "Increase", "Monitor").
+       - Bold key concepts.
 
-    3. **Chart Data Section** (very important):
-       - Output in the following exact format:
+    3. **Chart Data Section**:
+       - Must strictly follow:
          chart_type: pie
          labels: ["Category1", "Category2", "Category3"]
          values: [10, 20, 30]
-       - Pick meaningful categories and values from the report.
-       - Ensure labels and values count match.
-    
+
     ### Final Output Format:
     #### Summary:
     - ...
@@ -148,16 +134,13 @@ def generate_summary(data):
     """
     reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"])
 
-    # --- Load and Run the Map-Reduce Chain ---
     chain = load_summarize_chain(
         llm,
         chain_type="map_reduce",
         map_prompt=map_prompt,
         combine_prompt=reduce_prompt,
-        verbose=True  # Set to False in production
+        verbose=True
     )
 
-    # The chain returns a dictionary, e.g., {"output_text": "..."}
     response = chain.invoke({"input_documents": docs})
-    
     return response["output_text"]
