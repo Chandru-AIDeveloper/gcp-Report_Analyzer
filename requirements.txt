@@ -1,11 +1,27 @@
-streamlit
+# FastAPI Backend
 fastapi
-uvicorn
-pdfplumber
+uvicorn[standard]
+
+# Streamlit Frontend (for app.py)
+streamlit
+
+# Data & ML
 pandas
-matplotlib
-scikit-learn
-langchain
-ollama
 openpyxl
-langchain_ollama
+numpy
+scipy
+scikit-learn
+
+# PDF & File Handling
+pdfplumber
+python-dotenv
+
+# Langchain & AI
+langchain
+langchain-ollama
+langchain-community
+sentence-transformers
+faiss-cpu
+
+# Charting
+matplotlib

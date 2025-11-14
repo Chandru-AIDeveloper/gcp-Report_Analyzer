@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy requirements (if exists)
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt || true
+# Install dependencies (Removed "|| true")
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the project (respecting .dockerignore)
 COPY . .
