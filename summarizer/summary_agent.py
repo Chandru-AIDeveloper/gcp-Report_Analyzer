@@ -15,9 +15,8 @@ def generate_summary(data):
     Handles large reports via the map-reduce approach.
     """
 
-    # ✅ Initialize Ollama LLM (Replace model name with your available local model)
     llm = ChatOllama(
-        model="gemma",  # You can change this to 'llama3', 'llama3.1', etc.
+        model="gemma:2b",
         temperature=0.3
     )
 
@@ -29,43 +28,51 @@ def generate_summary(data):
     else:
         raise ValueError("Input must include either 'raw_text' or 'json_data'.")
 
-    # --- Text Splitting (to avoid large context issues) ---
+    # --- Text Splitting ---
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=8000,
         chunk_overlap=400
     )
     docs = [Document(page_content=chunk) for chunk in text_splitter.split_text(report_input)]
 
-    # --- Case 1: Small text (single chunk) ---
+    # --- Case 1: Small text ---
     if len(docs) == 1:
         print("--- Small input detected, running single prompt ---")
+
         final_prompt_template = ChatPromptTemplate.from_template(
             """
-            You are an AI assistant that analyzes reports and provides concise summaries,
-            actionable suggestions, and structured chart data.
+            You are an AI assistant that analyzes **any type of input data**, including:
+            - Plain text
+            - JSON objects
+            - Arrays of JSON
+            - Deep or nested JSON structures
+            - Logs or mixed structured data
 
-            ### Input Report:
+            Your task is to interpret the input correctly and extract meaningful insights.
+
+            ### Input Data:
             {report}
 
-            ### Output Instructions:
+            ### What you MUST generate:
             1. **Summary Section**:
-               - Write 4–6 bullet points.
-               - Keep each point short, simple, and informative.
+               - Provide 4–6 key insights.
+               - Extract meaning even from raw JSON.
+               - Keep points clear and concise.
                - **Bold important keywords**.
 
             2. **Suggestions Section**:
-               - Provide 3–5 practical and actionable suggestions.
-               - Each suggestion should start with a verb (e.g., "Improve", "Enhance").
-               - **Bold key terms**.
+               - Provide 3–5 actionable, practical improvements.
+               - Start each suggestion with a verb.
+               - **Bold key concepts**.
 
             3. **Chart Data Section**:
-               - Output exactly in this format:
+               - Must follow EXACT format:
                  chart_type: pie
                  labels: ["Category1", "Category2", "Category3"]
                  values: [10, 20, 30]
-               - Choose meaningful categories and values from the report.
+               - If numeric values are missing, make reasonable assumptions.
 
-            ### Final Output Format:
+            ### Final Output Format (must follow EXACTLY):
             #### Summary:
             - ...
 
@@ -83,39 +90,39 @@ def generate_summary(data):
         response = chain.invoke({"report": report_input})
         return response.content if hasattr(response, "content") else str(response)
 
-    # --- Case 2: Large text (multiple chunks → map-reduce) ---
+    # --- Case 2: Large text (Map-Reduce) ---
     print(f"--- Large input detected, running map-reduce with {len(docs)} chunks ---")
 
     map_prompt_template = """
-    Summarize the following section from a large report,
-    focusing on key points, figures, and major findings.
+    Summarize the following section. 
+    The input may be JSON or plain text. Extract only meaningful points.
 
     "{text}"
 
-    CONCISE SUMMARY:
+    SHORT SUMMARY:
     """
     map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
 
     reduce_template = """
-    You are an AI assistant that combines partial summaries into one comprehensive output.
+    You are an AI assistant that merges partial summaries into one final structured output.
+    The original input may contain JSON or plain text.
 
     ### Partial Summaries:
     {text}
 
-    ### Output Instructions:
-    Based *only* on the summaries above, generate:
+    ### Final Output Instructions:
 
     1. **Summary Section**:
-       - Write 4–6 bullet points.
-       - Highlight **important terms**.
+       - Provide 4–6 combined insights.
+       - Highlight **important keywords**.
 
     2. **Suggestions Section**:
-       - 3–5 actionable improvements.
-       - Start each with a verb (e.g., "Optimize", "Increase", "Monitor").
+       - Provide 3–5 improvements.
+       - Start each with an action verb.
        - Bold key concepts.
 
     3. **Chart Data Section**:
-       - Must strictly follow:
+       Output EXACTLY in this format:
          chart_type: pie
          labels: ["Category1", "Category2", "Category3"]
          values: [10, 20, 30]
