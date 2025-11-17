@@ -13,7 +13,7 @@ load_dotenv()
 # Global LLM (Ollama)
 # ------------------------------
 llm = ChatOllama(
-    model="gemma",   # You can change to "llama3", "phi3", etc. depending on what’s installed
+    model="gemma:2b",   # You can change to "llama3", "phi3", etc. depending on what’s installed
     temperature=0.3
 )
 
@@ -67,7 +67,7 @@ def get_answer(question: str, context: str) -> str:
             """
             You are a helpful and knowledgeable AI assistant.
             Use the **conversation history**, **long-term memory**, and **given context**
-            to answer the question accurately and clearly.
+            to answer the question accurately and clearly, You should be answer based on the user query.
             If the information isn't available, respond honestly that you don't know.
 
             ### Conversation History:

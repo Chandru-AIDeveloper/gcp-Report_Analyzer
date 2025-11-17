@@ -1,6 +1,6 @@
 # Exclude large data files and directories
 faiss_index/
-models/
+
 
 # Exclude Python cache and bytecode
 __pycache__/

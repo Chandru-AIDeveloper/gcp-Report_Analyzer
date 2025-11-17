@@ -37,42 +37,51 @@ def generate_summary(data):
 
     # --- Case 1: Small text ---
     if len(docs) == 1:
-        print("--- Small input detected, running single prompt ---")
 
         final_prompt_template = ChatPromptTemplate.from_template(
             """
-            You are an AI assistant that analyzes **any type of input data**, including:
-            - Plain text
+            You are an AI assistant that analyzes structured or unstructured data.
+            Input may contain:
             - JSON objects
             - Arrays of JSON
-            - Deep or nested JSON structures
-            - Logs or mixed structured data
+            - Nested JSON
+            - Plain text
+            - Mixed data
 
-            Your task is to interpret the input correctly and extract meaningful insights.
+            ### VERY IMPORTANT RULES:
+            - **Do NOT repeat the entire JSON content in the output**
+            - **Do NOT list every field**
+            - **Do NOT hallucinate or invent fields**
+            - Focus only on patterns, insights, and meaningful information
+            - Extract categories, counts, or key attributes WITHOUT copying raw JSON
 
             ### Input Data:
             {report}
 
-            ### What you MUST generate:
-            1. **Summary Section**:
-               - Provide 4–6 key insights.
-               - Extract meaning even from raw JSON.
-               - Keep points clear and concise.
-               - **Bold important keywords**.
+            ### Your Tasks:
 
-            2. **Suggestions Section**:
-               - Provide 3–5 actionable, practical improvements.
-               - Start each suggestion with a verb.
-               - **Bold key concepts**.
+            1. **Summary Section**
+               - Provide 4–6 insights.
+               - Extract meaning from the JSON (patterns, categories, key metrics).
+               - Be concise and avoid repeating raw JSON structures.
 
-            3. **Chart Data Section**:
-               - Must follow EXACT format:
+            2. **Suggestions Section**
+               - Provide 3–5 actionable recommendations.
+               - Start each with a verb (e.g., Improve, Reduce, Optimize).
+
+            3. **Chart Data Section**
+               - Derive labels and values ONLY from the input.
+               - Identify categories or counts from JSON keys, unique values, or patterns.
+               - DO NOT use placeholders.
+               - Format MUST be:
+
                  chart_type: pie
-                 labels: ["Category1", "Category2", "Category3"]
-                 values: [10, 20, 30]
-               - If numeric values are missing, make reasonable assumptions.
+                 labels: ["label1", "label2", "label3"]
+                 values: [value1, value2, value3]
 
-            ### Final Output Format (must follow EXACTLY):
+               - If numeric values do not exist, generate counts based on frequency.
+
+            ### FINAL OUTPUT FORMAT:
             #### Summary:
             - ...
 
@@ -91,11 +100,12 @@ def generate_summary(data):
         return response.content if hasattr(response, "content") else str(response)
 
     # --- Case 2: Large text (Map-Reduce) ---
-    print(f"--- Large input detected, running map-reduce with {len(docs)} chunks ---")
 
     map_prompt_template = """
-    Summarize the following section. 
-    The input may be JSON or plain text. Extract only meaningful points.
+    Summarize the following text or JSON section.
+    - Do NOT repeat raw JSON keys/values.
+    - Extract only meaningful insights.
+    - Identify patterns, frequent values, and structure.
 
     "{text}"
 
@@ -104,30 +114,36 @@ def generate_summary(data):
     map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
 
     reduce_template = """
-    You are an AI assistant that merges partial summaries into one final structured output.
-    The original input may contain JSON or plain text.
+    Merge the partial summaries into one final summary.
+    DO NOT repeat input content.
+    DO NOT hallucinate non-existing values.
 
     ### Partial Summaries:
     {text}
 
-    ### Final Output Instructions:
+    ### Final Output Instructions
 
-    1. **Summary Section**:
-       - Provide 4–6 combined insights.
-       - Highlight **important keywords**.
+    #### Summary:
+    - Provide 4–6 combined insights.
+    - Be concise.
+    - Highlight **important keywords**.
+    - Avoid copying JSON.
 
-    2. **Suggestions Section**:
-       - Provide 3–5 improvements.
-       - Start each with an action verb.
-       - Bold key concepts.
+    #### Suggestions:
+    - Provide 3–5 actionable recommendations.
+    - Start each with a verb.
+    - Bold key terms.
 
-    3. **Chart Data Section**:
-       Output EXACTLY in this format:
-         chart_type: pie
-         labels: ["Category1", "Category2", "Category3"]
-         values: [10, 20, 30]
+    #### Chart Data:
+    - Must derive real categories from the JSON/summary.
+    - DO NOT use placeholder values.
+    - Format only:
 
-    ### Final Output Format:
+      chart_type: pie
+      labels: ["label1", "label2", "label3"]
+      values: [value1, value2, value3]
+
+    ### FINAL OUTPUT FORMAT:
     #### Summary:
     - ...
 
