@@ -185,12 +185,19 @@ async def get_chart(session_id: str):
 # CHAT ENDPOINT
 # ----------------------------
 @app.post("/chat")
-async def chat_with_agent(request: ChatRequest):
+async def chat_with_agent(request: Request):
     """
     Chat with the AI agent about uploaded data.
     Requires valid session_id from upload response.
     """
-    session_id = request.session_id
+
+    # STRICTLY read from JSON body
+    payload = await request.json()
+    session_id = payload.get("session_id")
+    user_message = payload.get("content")
+
+    if not session_id or not user_message:
+        return JSONResponse({"error": "session_id and content are required"}, status_code=400)
 
     if session_id not in context_store:
         return JSONResponse(
@@ -199,13 +206,13 @@ async def chat_with_agent(request: ChatRequest):
         )
 
     context_data = context_store[session_id]["context"]
-    
-    # Get answer from QA agent
-    response = get_answer(request.content, context_data)
+
+    # Get answer from QA agent (NO OTHER LOGIC CHANGED)
+    response = get_answer(user_message, context_data)
 
     return {
         "session_id": session_id,
-        "content": request.content,
+        "content": user_message,
         "response": response
     }
 

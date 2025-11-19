@@ -111,3 +111,4 @@ def get_answer(question: str, context: str) -> str:
         import traceback
         print(f"Error in get_answer: {traceback.format_exc()}")
         return f"Error generating answer: {str(e)}"
+
