@@ -88,10 +88,6 @@ def generate_summary(data):
             #### Suggestions:
             - ...
 
-            #### Chart Data:
-            chart_type: pie
-            labels: [...]
-            values: [...]
             """
         )
 
