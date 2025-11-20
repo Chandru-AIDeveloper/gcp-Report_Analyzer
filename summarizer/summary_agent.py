@@ -64,10 +64,12 @@ def generate_summary(data):
                - Provide 4–6 insights.
                - Extract meaning from the JSON (patterns, categories, key metrics).
                - Be concise and avoid repeating raw JSON structures.
+               - Give a output as a insight of the given data.
 
             2. **Suggestions Section**
                - Provide 3–5 actionable recommendations.
                - Start each with a verb (e.g., Improve, Reduce, Optimize).
+               - Provide a suggestions like improvements strenghts and weakness. 
 
             3. **Chart Data Section**
                - Derive labels and values ONLY from the input.
