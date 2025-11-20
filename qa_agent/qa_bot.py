@@ -11,7 +11,7 @@ load_dotenv()
 
 llm = ChatOllama(
     model="gemma:2b",
-    temperature=0.3
+    temperature=0.2
 )
 
 # GLOBAL long-term memory

@@ -126,11 +126,13 @@ def generate_summary(data):
     - Be concise.
     - Highlight **important keywords**.
     - Avoid copying JSON.
+    - The given insights should be meaningful.
 
     #### Suggestions:
     - Provide 3–5 actionable recommendations.
     - Start each with a verb.
     - Bold key terms.
+    - Give a Suggestions like improvements strengths and Weaknesses.
 
     #### Chart Data:
     - Must derive real categories from the JSON/summary.
@@ -147,11 +149,6 @@ def generate_summary(data):
 
     #### Suggestions:
     - ...
-
-    #### Chart Data:
-    chart_type: pie
-    labels: [...]
-    values: [...]
     """
     reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"])
 

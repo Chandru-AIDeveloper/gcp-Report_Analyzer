@@ -9,6 +9,40 @@ import uuid
 import base64
 from io import BytesIO
 
+# ----------------------------
+# SHARED SESSION STORE (file-based)
+# ----------------------------
+SESSIONS_FILE = os.path.join(os.getcwd(), "sessions.json")
+
+def save_session_to_file(session_id: str, data: dict):
+    """Save session data to a shared JSON file."""
+    try:
+        sessions = {}
+        if os.path.exists(SESSIONS_FILE):
+            with open(SESSIONS_FILE, "r", encoding="utf-8") as fh:
+                sessions = json.load(fh)
+    except Exception:
+        sessions = {}
+    sessions[session_id] = data
+    try:
+        with open(SESSIONS_FILE, "w", encoding="utf-8") as fh:
+            json.dump(sessions, fh)
+    except Exception as e:
+        print(f"Failed to save session file: {e}")
+
+def load_session_from_file(session_id: str):
+    """Load session data saved by another service."""
+    if not os.path.exists(SESSIONS_FILE):
+        return None
+    try:
+        with open(SESSIONS_FILE, "r", encoding="utf-8") as fh:
+            sessions = json.load(fh)
+        return sessions.get(session_id)
+    except Exception as e:
+        print(f"Failed to load session file: {e}")
+        return None
+
+
 # Local imports
 from parsers.pdf_parser import parse_pdf
 from utils.file_utils import read_csv, read_excel
@@ -147,6 +181,16 @@ def process_summary(data: dict):
         "chart": chart_obj,
         "summary": summary_part
     }
+
+    # Also save session to shared file so other services can read it
+    try:
+        save_session_to_file(session_id, {
+            "context": context_text + "\n\n" + full_response,
+            "summary": summary_part,
+            "chart": chart_base64 if chart_base64 else None
+        })
+    except Exception as e:
+        print(f"Warning: could not save session to file: {e}")
 
     response = {
         "session_id": session_id,
