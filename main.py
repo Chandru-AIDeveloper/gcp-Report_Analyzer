@@ -208,7 +208,7 @@ async def chat_with_agent(request: Request):
     context_data = context_store[session_id]["context"]
 
     # Get answer from QA agent (NO OTHER LOGIC CHANGED)
-    response = get_answer(user_message, context_data)
+    response = get_answer(user_message, context_data, session_id)
 
     return {
         "session_id": session_id,
