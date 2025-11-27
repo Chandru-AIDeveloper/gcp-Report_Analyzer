@@ -40,57 +40,81 @@ def generate_summary(data):
 
         final_prompt_template = ChatPromptTemplate.from_template(
             """
-            You are an AI assistant that analyzes structured or unstructured data.
-            Input may contain:
-            - JSON objects
-            - Arrays of JSON
-            - Nested JSON
-            - Plain text
-            - Mixed data
+    You are an AI insights analyst. Your task is to read the input and produce
+    a structured, readable analysis. The input may contain raw JSON, text, mixed
+    data, nested arrays, or unstructured content.
 
-            ### VERY IMPORTANT RULES:
-            - **Do NOT repeat the entire JSON content in the output**
-            - **Do NOT list every field**
-            - **Do NOT hallucinate or invent fields**
-            - Focus only on patterns, insights, and meaningful information
-            - Extract categories, counts, or key attributes WITHOUT copying raw JSON
+    ---------------------------------------------------------
+    RULES (Follow strictly)
+    ---------------------------------------------------------
+    - Do NOT copy or restate the entire JSON / exact raw text
+    - Avoid listing every field or key
+    - No hallucination or adding fields not present
+    - Focus only on meaning, patterns, and useful findings
+    - The response must be easy to read like a human-written summary
+    - Final response must NOT be in JSON or code format — only text
 
-            ### Input Data:
-            {report}
+    ---------------------------------------------------------
+    Input Provided:
+    {report}
+    ---------------------------------------------------------
 
-            ### Your Tasks:
+    Your Output Must Be:
 
-            1. **Summary Section**
-               - Provide 4–6 insights.
-               - Extract meaning from the JSON (patterns, categories, key metrics).
-               - Be concise and avoid repeating raw JSON structures.
-               - Give a output as a insight of the given data.
+    -------------------------
+    📄 Summary (Insights)
+    -------------------------
+    Write 5–8 meaningful insights explaining what the data indicates.
+    Focus on:
+    - patterns or trends
+    - common values or categories
+    - numerical significance
+    - anomalies or missing areas
+    - real-world interpretation of what the data implies
 
-            2. **Suggestions Section**
-               - Provide 3–5 actionable recommendations.
-               - Start each with a verb (e.g., Improve, Reduce, Optimize).
-               - Provide a suggestions like improvements strenghts and weakness. 
+    Write naturally, like a readable report paragraph or bullet points.
 
-            3. **Chart Data Section**
-               - Derive labels and values ONLY from the input.
-               - Identify categories or counts from JSON keys, unique values, or patterns.
-               - DO NOT use placeholders.
-               - Format MUST be:
+    -------------------------
+    🔍 Suggestions (Improvements / Actions)
+    -------------------------
+    Provide 4–6 recommendations derived from the insights:
+    - Start each suggestion with a strong action verb
+    - Mention strengths, weaknesses, improvements, opportunities
+    - Make it helpful and practical — avoid generic advice
 
-                 chart_type: pie
-                 labels: ["label1", "label2", "label3"]
-                 values: [value1, value2, value3]
+    Example tone:
+    ✓ Improve reporting accuracy by...
+    ✓ Reduce inconsistencies by...
+    ✓ Enhance performance through...
 
-               - If numeric values do not exist, generate counts based on frequency.
+    -------------------------
+    📊 Chart-Friendly Section (Readable – NOT JSON)
+    -------------------------
+    Identify categories/counts from data and present chart content clearly.
+    No placeholders. Only actual inferred values.
 
-            ### FINAL OUTPUT FORMAT:
-            #### Summary:
-            - ...
+    Example output:
+    Chart (Pie) Based on Category Distribution:
+    - Category A → 10
+    - Category B → 6
+    - Category C → 3
 
-            #### Suggestions:
-            - ...
+    ---------------------------------------------------------
+    Final Expected Output Format (Plain Text Only):
+    ---------------------------------------------------------
 
-            """
+    #### Summary:
+    • Insight 1
+    • Insight 2
+    • Insight 3
+    ...
+
+    #### Suggestions:
+    • Recommendation 1
+    • Recommendation 2
+    • Recommendation 3
+    ...
+    """
         )
 
         chain = final_prompt_template | llm
