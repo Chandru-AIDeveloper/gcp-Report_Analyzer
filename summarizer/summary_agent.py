@@ -16,7 +16,7 @@ def generate_summary(data):
     """
 
     llm = ChatOllama(
-        model="gemma:2b",
+        model="mistral:7b-instruct",
         temperature=0.3
     )
 
@@ -39,83 +39,122 @@ def generate_summary(data):
     if len(docs) == 1:
 
         final_prompt_template = ChatPromptTemplate.from_template(
-            """
-    You are an AI insights analyst. Your task is to read the input and produce
-    a structured, readable analysis. The input may contain raw JSON, text, mixed
-    data, nested arrays, or unstructured content.
+             """
+    You are an **AI Insights Analyst**.
+
+    Your responsibility is to analyze the provided input data and produce
+    **high-quality business insights** in clear, human-readable language.
+
+    The input may include:
+    - Raw or nested JSON
+    - Tables or key-value data
+    - Transactional or analytical records
+    - Mixed structured and unstructured text
 
     ---------------------------------------------------------
-    RULES (Follow strictly)
+    STRICT RULES (DO NOT VIOLATE)
     ---------------------------------------------------------
-    - Do NOT copy or restate the entire JSON / exact raw text
-    - Avoid listing every field or key
-    - No hallucination or adding fields not present
-    - Focus only on meaning, patterns, and useful findings
-    - The response must be easy to read like a human-written summary
-    - Final response must NOT be in JSON or code format — only text
+    1. DO NOT repeat or rewrite the raw input data
+    2. DO NOT list all fields, keys, or records
+    3. DO NOT assume or invent missing data
+    4. DO NOT output JSON, markdown tables, or code
+    5. Interpret only what is present in the input
+    6. Focus on **meaning, trends, patterns, and implications**
+    7. Keep the output professional, concise, and insightful
 
     ---------------------------------------------------------
-    Input Provided:
+    INPUT DATA:
     {report}
     ---------------------------------------------------------
 
-    Your Output Must Be:
+    Your output MUST contain ONLY the sections below,
+    written in **plain readable text**.
 
-    -------------------------
-    📄 Summary (Insights)
-    -------------------------
-    Write 5–8 meaningful insights explaining what the data indicates.
-    Focus on:
-    - patterns or trends
-    - common values or categories
-    - numerical significance
-    - anomalies or missing areas
-    - real-world interpretation of what the data implies
+    =========================================================
+    📄 SUMMARY – KEY INSIGHTS
+    =========================================================
+    Write **5–8 meaningful insights** that explain what the data actually shows.
 
-    Write naturally, like a readable report paragraph or bullet points.
+    Each insight should:
+    - Describe patterns, trends, or distributions
+    - Highlight significant numerical behavior (if present)
+    - Point out inconsistencies, anomalies, or gaps
+    - Translate raw data into **real-world understanding**
+    - Explain *what this data implies*, not what it contains
 
-    -------------------------
-    🔍 Suggestions (Improvements / Actions)
-    -------------------------
-    Provide 4–6 recommendations derived from the insights:
-    - Start each suggestion with a strong action verb
-    - Mention strengths, weaknesses, improvements, opportunities
-    - Make it helpful and practical — avoid generic advice
+    Avoid generic statements.
+    Each insight should add **new analytical value**.
 
     Example tone:
-    ✓ Improve reporting accuracy by...
-    ✓ Reduce inconsistencies by...
-    ✓ Enhance performance through...
+    • A clear concentration of transactions indicates…
+    • Repeated values across records suggest…
+    • Missing or inconsistent fields may impact…
+    • The distribution shows a strong imbalance toward…
 
-    -------------------------
-    📊 Chart-Friendly Section (Readable – NOT JSON)
-    -------------------------
-    Identify categories/counts from data and present chart content clearly.
-    No placeholders. Only actual inferred values.
+    =========================================================
+    🔍 SUGGESTIONS – ACTIONABLE RECOMMENDATIONS
+    =========================================================
+    Provide **4–6 practical recommendations** derived directly from the insights.
 
-    Example output:
-    Chart (Pie) Based on Category Distribution:
-    - Category A → 10
-    - Category B → 6
-    - Category C → 3
+    Rules:
+    - Start each suggestion with a **strong action verb**
+    - Address improvements, risks, efficiency, or opportunities
+    - Tie each suggestion back to an insight
+    - Avoid vague advice (e.g., “improve quality”)
 
-    ---------------------------------------------------------
-    Final Expected Output Format (Plain Text Only):
-    ---------------------------------------------------------
+    Example starters:
+    • Improve …
+    • Standardize …
+    • Reduce …
+    • Strengthen …
+    • Optimize …
+    • Monitor …
+
+    =========================================================
+    📊 CHART-FRIENDLY OBSERVATIONS
+    =========================================================
+    Only include this section if the data supports aggregation.
+
+    Present **clear, readable values** suitable for charts
+    (Pie / Bar / Line), but NOT in JSON format.
+
+    Rules:
+    - Use only inferred or counted values from the input
+    - Do not guess or fabricate numbers
+    - Keep labels simple and meaningful
+
+    Example:
+    Category Distribution:
+    - Approved → 18
+    - Pending → 7
+    - Rejected → 3
+
+    OR
+
+    Monthly Trend:
+    - January → High activity
+    - February → Moderate decline
+    - March → Sharp increase
+
+    =========================================================
+    FINAL OUTPUT FORMAT (TEXT ONLY)
+    =========================================================
 
     #### Summary:
-    • Insight 1
-    • Insight 2
-    • Insight 3
-    ...
+    • Insight 1  
+    • Insight 2  
+    • Insight 3  
 
     #### Suggestions:
-    • Recommendation 1
-    • Recommendation 2
-    • Recommendation 3
-    ...
+    • Recommendation 1  
+    • Recommendation 2  
+    • Recommendation 3  
+
+    #### Chart-Friendly Observations:
+    • Category A → Value  
+    • Category B → Value
     """
-        )
+    )
 
         chain = final_prompt_template | llm
         response = chain.invoke({"report": report_input})
@@ -136,44 +175,79 @@ def generate_summary(data):
     map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
 
     reduce_template = """
-    Merge the partial summaries into one final summary.
-    DO NOT repeat input content.
-    DO NOT hallucinate non-existing values.
+You are an **AI Insight Synthesizer**.
 
-    ### Partial Summaries:
-    {text}
+Your task is to merge multiple partial summaries into **one final, high-quality insight report**.
+The partial summaries are already derived from the same source data.
 
-    ### Final Output Instructions
+---------------------------------------------------------
+STRICT RULES (DO NOT VIOLATE)
+---------------------------------------------------------
+1. DO NOT repeat or restate the original input or partial summaries
+2. DO NOT copy sentences verbatim from the summaries
+3. DO NOT hallucinate or invent values, categories, or trends
+4. DO NOT introduce new fields or assumptions
+5. DO NOT output raw JSON from the input
+6. Keep the output concise, analytical, and meaningful
+7. Only infer what is clearly supported by the summaries
 
-    #### Summary:
-    - Provide 4–6 combined insights.
-    - Be concise.
-    - Highlight **important keywords**.
-    - Avoid copying JSON.
-    - The given insights should be meaningful.
+---------------------------------------------------------
+PARTIAL SUMMARIES:
+{text}
+---------------------------------------------------------
 
-    #### Suggestions:
-    - Provide 3–5 actionable recommendations.
-    - Start each with a verb.
-    - Bold key terms.
-    - Give a Suggestions like improvements strengths and Weaknesses.
+Your output MUST strictly follow the format below.
 
-    #### Chart Data:
-    - Must derive real categories from the JSON/summary.
-    - DO NOT use placeholder values.
-    - Format only:
+=========================================================
+#### Summary:
+=========================================================
+Provide **4–6 combined insights** that:
+- Merge overlapping ideas into stronger conclusions
+- Highlight **important keywords** in bold
+- Focus on patterns, trends, strengths, weaknesses, or gaps
+- Explain *what the combined data implies*, not what it contains
+- Avoid repeating similar points
 
-      chart_type: pie
-      labels: ["label1", "label2", "label3"]
-      values: [value1, value2, value3]
+Each point must add **new analytical value**.
 
-    ### FINAL OUTPUT FORMAT:
-    #### Summary:
-    - ...
+=========================================================
+#### Suggestions:
+=========================================================
+Provide **3–5 actionable recommendations**:
+- Start each with a **strong action verb**
+- Bold **key terms**
+- Clearly relate to strengths, weaknesses, or improvement areas
+- Keep recommendations practical and specific
 
-    #### Suggestions:
-    - ...
-    """
+Example starters:
+- **Improve** …
+- **Reduce** …
+- **Standardize** …
+- **Strengthen** …
+- **Optimize** …
+
+=========================================================
+#### Chart Data:
+=========================================================
+Only include **real, derivable categories** from the summaries.
+
+Rules:
+- NO placeholder values
+- NO assumptions
+- Use ONLY inferred counts or categories mentioned in summaries
+- Output ONLY in the format below (no extra text)
+
+chart_type: pie
+labels: ["Label A", "Label B", "Label C"]
+values: [10, 6, 3]
+
+=========================================================
+FINAL OUTPUT MUST CONTAIN ONLY:
+- Summary
+- Suggestions
+- Chart Data (if supported)
+=========================================================
+"""
     reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"])
 
     chain = load_summarize_chain(

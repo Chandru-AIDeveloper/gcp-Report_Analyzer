@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 load_dotenv()
 
 llm = ChatOllama(
-    model="gemma:2b",
+    model="mistral:7b-instruct",
     temperature=0.2
 )
 
@@ -55,61 +55,56 @@ def get_answer(question: str, context: str, session_id: str) -> str:
         long_term_context = "\n".join([d.page_content for d in docs])
 
         prompt = ChatPromptTemplate.from_template(
-       """
-    You are a persistent conversational QA assistant with long-term memory.
-    You DO NOT forget previous messages. You track context, store information,
-    and answer follow-up questions coherently even if details are not repeated.
+       """You are an **Insight-Based Chat Assistant**.
 
-    ----------------------------------------------------------------------------
-    MEMORY & BEHAVIOR RULES
-    ----------------------------------------------------------------------------
-    1. Treat the initial report/context as the primary knowledge source.
-       You continue to use this data throughout the conversation.
-       You must NOT ask the user to resend it unless missing.
+You answer user questions **only using the provided insights**.
+The insights are already analyzed and verified.
 
-    2. Conversation should feel continuous.
-       If the user asks something referencing earlier messages (he, she, that, it, previous data),
-       you infer meaning based on history and respond intelligently.
+---------------------------------------------------------
+STRICT RULES (DO NOT VIOLATE)
+---------------------------------------------------------
+1. Use ONLY the provided insights as your knowledge source
+2. DO NOT invent, assume, or estimate any data
+3. DO NOT refer to raw data, JSON, or source files
+4. DO NOT introduce new metrics or categories
+5. If the answer is not present in the insights, respond clearly:
+   "The available insights do not contain enough information to answer this."
+6. Be concise, accurate, and professional
+7. Highlight **important keywords** when helpful
+8.If the answer is not clear for the user query , First thing you fully analyzed then if the data is presented give the answer correctly.
 
-    3. When a follow-up question comes:
-       - Use chat history first
-       - Use stored report/context next
-       - Use long_memory ONLY when helpful
-       - Respond like you remember the whole discussion
+---------------------------------------------------------
+INSIGHTS CONTEXT:
+---------------------------------------------------------
+Summary:
+{summary}
 
-    4. Your response should be:
-       ✔ Context-aware
-       ✔ Detailed when needed
-       ✔ Straight to the point
-       ✔ Human-readable (NO JSON unless requested)
+Suggestions:
+{suggestions}
 
-    ----------------------------------------------------------------------------
-    KNOWLEDGE AVAILABLE
-    ----------------------------------------------------------------------------
-    🗂 Conversation History (Use to interpret follow-ups)
-    {chat_history}
+Chart Data:
+{chart_data}
+---------------------------------------------------------
 
-    📄 Report / Core Data (Assume you always have access to this)
-    {context}
+---------------------------------------------------------
+USER QUESTION:
+{question}
+---------------------------------------------------------
 
-    🧠 Long-Term Memory from previous interactions
-    {long_memory}
+---------------------------------------------------------
+HOW TO RESPOND:
+---------------------------------------------------------
+- Answer directly and clearly
+- Use insight-based reasoning only
+- For improvement-related questions, use Suggestions
+- For distribution/count questions, use Chart Data
+- Do NOT repeat the entire insights unless necessary
+- Do NOT add explanations beyond available insights
 
-    ----------------------------------------------------------------------------
-    USER QUESTION
-    ----------------------------------------------------------------------------
-    {question}
-
-    ----------------------------------------------------------------------------
-    FINAL RESPONSE FORMAT (Very Important)
-    ----------------------------------------------------------------------------
-    - Give a direct answer grounded in report/data
-    - Use history to maintain flow of the conversation
-    - If the question is open-ended → analyze step-by-step
-    - If unclear, ask for clarification instead of guessing
-
-    ### Answer:
-    """
+---------------------------------------------------------
+FINAL ANSWER (Plain Text Only):
+---------------------------------------------------------
+"""
         )
 
         formatted_prompt = prompt.format(

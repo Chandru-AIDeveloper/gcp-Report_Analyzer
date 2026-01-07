@@ -1,3 +1,4 @@
+import os
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -7,8 +8,16 @@ from typing import Dict, Any, Optional
 import json
 import uuid
 import base64
+import hashlib
 from io import BytesIO
+from langchain_ollama import ChatOllama
+from fastapi.concurrency import run_in_threadpool
 
+SUMMARY_CACHE: Dict[str, dict] = {}
+
+def _cache_key(data: dict) -> str:
+    raw = json.dumps(data, sort_keys=True, default=str)
+    return hashlib.md5(raw.encode()).hexdigest()
 # ----------------------------
 # SHARED SESSION STORE (file-based)
 # ----------------------------
@@ -102,7 +111,7 @@ async def upload_file(file: UploadFile = File(...)):
     if not data:
         return JSONResponse({"error": "Parsing failed"}, status_code=500)
 
-    return process_summary(data)
+    return await run_in_threadpool(process_summary, data)
 
 
 # ----------------------------
@@ -131,7 +140,7 @@ async def upload_json(request: Request):
             status_code=400
         )
 
-    return process_summary(data)
+    return await run_in_threadpool(process_summary, data)
 
 
 # ----------------------------
@@ -139,59 +148,105 @@ async def upload_json(request: Request):
 # ----------------------------
 def process_summary(data: dict):
     """
-    Processes uploaded data and returns summary, predictions, suggestions, and chart.
-    All operations are non-blocking and complete immediately.
+    Generate summary, charts, predictions and store session context.
+    Optimized for GCP performance and safety.
     """
-    # Generate summary (includes chart data)
+
+    # ----------------------------
+    # CACHE CHECK (HUGE SPEED-UP)
+    # ----------------------------
+    cache_key = _cache_key(data)
+    if cache_key in SUMMARY_CACHE:
+        cached = SUMMARY_CACHE[cache_key]
+
+        # new session id, same result
+        session_id = str(uuid.uuid4())
+        context_store[session_id] = cached["context_store"]
+
+        save_session_to_file(session_id, cached["session_file"])
+
+        response = cached["response"].copy()
+        response["session_id"] = session_id
+        return response
+
+    # ----------------------------
+    # GENERATE SUMMARY (HEAVY)
+    # ----------------------------
     full_response = generate_summary(data)
 
-    # Extract context for chat
-    context_text = ""
+    # ----------------------------
+    # CONTEXT (LIMIT SIZE)
+    # ----------------------------
     if "raw_text" in data:
-        context_text = data["raw_text"]
+        context_text = data["raw_text"][:8000]  # limit context
     elif "json_data" in data:
-        context_text = json.dumps(data["json_data"], indent=2)
+        context_text = json.dumps(data["json_data"], indent=2)[:8000]
+    else:
+        context_text = ""
 
-    # Create unique session
     session_id = str(uuid.uuid4())
 
-    # Extract summary part (before chart data section)
-    summary_part = full_response.split("### Chart Data:")[0] if "### Chart Data:" in full_response else full_response
+    # ----------------------------
+    # CLEAN SUMMARY EXTRACTION
+    # ----------------------------
+    summary_part = full_response
+    if "#### Chart Data:" in full_response:
+        summary_part = full_response.split("#### Chart Data:")[0].strip()
 
-    # Generate predictions and suggestions
-    prediction = predict_kpis(data)
-    suggestions = get_recommendations(data)
+    # ----------------------------
+    # AUX PROCESSING (SAFE)
+    # ----------------------------
+    try:
+        prediction = predict_kpis(data)
+    except Exception as e:
+        prediction = {"error": str(e)}
 
-    # Generate chart (non-blocking now!)
-    chart_obj: BytesIO | None = None
-    chart_base64: str | None = None
-    chart_error: str | None = None
-    
-    chart_result = generate_charts(full_response)
-    if chart_result and chart_result.get("chart"):
-        chart_obj = chart_result["chart"]
-        chart_bytes = chart_obj.getvalue()
-        chart_base64 = base64.b64encode(chart_bytes).decode("utf-8")
-    elif chart_result and chart_result.get("error"):
-        chart_error = chart_result["error"]
+    try:
+        suggestions = get_recommendations(data)
+    except Exception as e:
+        suggestions = {"error": str(e)}
 
-    # Save session context (for chat)
-    context_store[session_id] = {
-        "context": context_text + "\n\n" + full_response,
+    # ----------------------------
+    # CHART GENERATION (OPTIONAL)
+    # ----------------------------
+    chart_obj = None
+    chart_base64 = None
+    chart_error = None
+
+    try:
+        chart_result = generate_charts(full_response)
+        if chart_result and chart_result.get("chart"):
+            chart_obj = chart_result["chart"]
+            chart_base64 = base64.b64encode(
+                chart_obj.getvalue()
+            ).decode("utf-8")
+        elif chart_result and chart_result.get("error"):
+            chart_error = chart_result["error"]
+    except Exception as e:
+        chart_error = str(e)
+
+    # ----------------------------
+    # CONTEXT STORE
+    # ----------------------------
+    context_payload = {
+        "context": context_text + "\n\n" + summary_part,
         "chart": chart_obj,
-        "summary": summary_part
+        "summary": summary_part,
     }
 
-    # Also save session to shared file so other services can read it
-    try:
-        save_session_to_file(session_id, {
-            "context": context_text + "\n\n" + full_response,
-            "summary": summary_part,
-            "chart": chart_base64 if chart_base64 else None
-        })
-    except Exception as e:
-        print(f"Warning: could not save session to file: {e}")
+    context_store[session_id] = context_payload
 
+    session_payload = {
+        "context": context_text + "\n\n" + summary_part,
+        "summary": summary_part,
+        "chart": chart_base64,
+    }
+
+    save_session_to_file(session_id, session_payload)
+
+    # ----------------------------
+    # FINAL RESPONSE
+    # ----------------------------
     response = {
         "session_id": session_id,
         "summary": summary_part,
@@ -199,16 +254,22 @@ def process_summary(data: dict):
         "suggestions": suggestions,
     }
 
-    # Add chart data
     if chart_base64:
         response["chart"] = chart_base64
         response["chart_url"] = f"/chart/{session_id}"
     elif chart_error:
         response["chart_error"] = chart_error
 
+    # ----------------------------
+    # CACHE RESULT
+    # ----------------------------
+    SUMMARY_CACHE[cache_key] = {
+        "response": response,
+        "context_store": context_payload,
+        "session_file": session_payload,
+    }
+
     return response
-
-
 # ----------------------------
 # CHART ENDPOINT
 # ----------------------------
@@ -260,6 +321,17 @@ async def chat_with_agent(request: Request):
         "response": response
     }
 
+@app.on_event("startup")
+def warmup_llm():
+    try:
+        llm = ChatOllama(
+            model="mistral:7b-instruct",
+            temperature=0
+        )
+        llm.invoke("READY")
+        print("LLM warm-up complete")
+    except Exception as e:
+        print("LLM warm-up failed:", e)
 
 # ----------------------------
 # MAIN
