@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 load_dotenv()
@@ -16,7 +16,7 @@ def generate_summary(data):
     """
 
     llm = ChatOllama(
-        model="mistral:7b-instruct",
+        model="phi3:mini",
         temperature=0.3
     )
 
@@ -30,8 +30,8 @@ def generate_summary(data):
 
     # --- Text Splitting ---
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=8000,
-        chunk_overlap=400
+        chunk_size=4000,
+        chunk_overlap=200
     )
     docs = [Document(page_content=chunk) for chunk in text_splitter.split_text(report_input)]
 
@@ -39,7 +39,7 @@ def generate_summary(data):
     if len(docs) == 1:
 
         final_prompt_template = ChatPromptTemplate.from_template(
-             """
+    """
     You are an **AI Insights Analyst**.
 
     Your responsibility is to analyze the provided input data and produce
@@ -155,6 +155,7 @@ def generate_summary(data):
     • Category B → Value
     """
     )
+
 
         chain = final_prompt_template | llm
         response = chain.invoke({"report": report_input})

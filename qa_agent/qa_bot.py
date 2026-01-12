@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 load_dotenv()
 
 llm = ChatOllama(
-    model="mistral:7b-instruct",
+    model="phi3:mini",
     temperature=0.2
 )
 
@@ -55,6 +55,7 @@ def get_answer(question: str, context: str, session_id: str) -> str:
         long_term_context = "\n".join([d.page_content for d in docs])
 
         prompt = ChatPromptTemplate.from_template(
+       
        """You are an **Insight-Based Chat Assistant**.
 
 You answer user questions **only using the provided insights**.
@@ -74,20 +75,24 @@ STRICT RULES (DO NOT VIOLATE)
 8.If the answer is not clear for the user query , First thing you fully analyzed then if the data is presented give the answer correctly.
 
 ---------------------------------------------------------
+CHAT HISTORY (Continuity):
+---------------------------------------------------------
+{chat_history}
+
+---------------------------------------------------------
+RELEVANT PAST KNOWLEDGE (Long-term Memory):
+---------------------------------------------------------
+{long_memory}
+
+---------------------------------------------------------
 INSIGHTS CONTEXT:
 ---------------------------------------------------------
-Summary:
-{summary}
-
-Suggestions:
-{suggestions}
-
-Chart Data:
-{chart_data}
+{context}
 ---------------------------------------------------------
 
 ---------------------------------------------------------
 USER QUESTION:
+---------------------------------------------------------
 {question}
 ---------------------------------------------------------
 
@@ -106,7 +111,6 @@ FINAL ANSWER (Plain Text Only):
 ---------------------------------------------------------
 """
         )
-
         formatted_prompt = prompt.format(
             chat_history=chat_history_text or "No previous conversation.",
             long_memory=long_term_context or "No relevant long-term memory.",

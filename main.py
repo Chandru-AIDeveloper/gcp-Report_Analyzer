@@ -196,15 +196,20 @@ def process_summary(data: dict):
     # ----------------------------
     # AUX PROCESSING (SAFE)
     # ----------------------------
-    try:
-        prediction = predict_kpis(data)
-    except Exception as e:
-        prediction = {"error": str(e)}
+    with ThreadPoolExecutor() as executor:
+        future_prediction = executor.submit(predict_kpis, data)
+        future_suggestions = executor.submit(get_recommendations, data)
+        future_chart = executor.submit(generate_charts, full_response)
 
-    try:
-        suggestions = get_recommendations(data)
-    except Exception as e:
-        suggestions = {"error": str(e)}
+        try:
+            prediction = future_prediction.result()
+        except Exception as e:
+            prediction = {"error": str(e)}
+
+        try:
+            suggestions = future_suggestions.result()
+        except Exception as e:
+            suggestions = {"error": str(e)}
 
     # ----------------------------
     # CHART GENERATION (OPTIONAL)

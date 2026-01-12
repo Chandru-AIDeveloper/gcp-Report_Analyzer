@@ -18,10 +18,10 @@ def generate_charts(summary_text, save_path: str = None):
         dict: {"chart": BytesIO, "error": None} or {"chart": None, "error": str}
     """
     try:
-        # Extract chart_type, labels, values
-        chart_type_match = re.search(r"chart_type:\s*['\"]?(\w+)['\"]?", summary_text)
-        labels_match = re.search(r"labels:\s*(\[.*?\])", summary_text, re.DOTALL)
-        values_match = re.search(r"values:\s*(\[.*?\])", summary_text, re.DOTALL)
+        # Extract chart_type, labels, values (Case-insensitive)
+        chart_type_match = re.search(r"chart_type:\s*['\"]?(\w+)['\"]?", summary_text, re.IGNORECASE)
+        labels_match = re.search(r"labels:\s*(\[.*?\])", summary_text, re.DOTALL | re.IGNORECASE)
+        values_match = re.search(r"values:\s*(\[.*?\])", summary_text, re.DOTALL | re.IGNORECASE)
 
         if not all([chart_type_match, labels_match, values_match]):
             print("Missing chart_type, labels, or values in summary_text.")
@@ -30,6 +30,19 @@ def generate_charts(summary_text, save_path: str = None):
         chart_type = chart_type_match.group(1).lower()
         labels = ast.literal_eval(labels_match.group(1))
         values = ast.literal_eval(values_match.group(1))
+
+        # Ensure values are numeric (handle cases like "20%")
+        clean_values = []
+        for v in values:
+            if isinstance(v, str):
+                # Remove % and try converting to float
+                try:
+                    clean_values.append(float(v.replace("%", "").strip()))
+                except ValueError:
+                    clean_values.append(0)
+            else:
+                clean_values.append(v)
+        values = clean_values
 
         if not labels or not values or len(labels) != len(values):
             print("Labels and values are missing or mismatched.")
@@ -54,6 +67,7 @@ def generate_charts(summary_text, save_path: str = None):
             bars = ax.bar(labels, values, color="skyblue")
             ax.set_ylabel('Values')
             ax.set_title('Summary Data')
+            plt.xticks(rotation=45, ha='right')
             for bar in bars:
                 yval = bar.get_height()
                 ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.5, f'{yval}', ha='center', va='bottom')
@@ -62,6 +76,7 @@ def generate_charts(summary_text, save_path: str = None):
             ax.plot(labels, values, marker="o", linestyle="-", color="green")
             ax.set_ylabel('Values')
             ax.set_title('Summary Data (Line Chart)')
+            plt.xticks(rotation=45, ha='right')
             for i, v in enumerate(values):
                 ax.text(i, v + 0.5, str(v), ha='center')
 
