@@ -17,7 +17,8 @@ def generate_summary(data):
 
     llm = ChatOllama(
         model="phi3:mini",
-        temperature=0.3
+        temperature=0.3,
+        num_ctx=16384
     )
 
     # --- Input Handling ---
@@ -30,7 +31,7 @@ def generate_summary(data):
 
     # --- Text Splitting ---
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=4000,
+        chunk_size=12000,
         chunk_overlap=200
     )
     docs = [Document(page_content=chunk) for chunk in text_splitter.split_text(report_input)]
@@ -253,9 +254,8 @@ FINAL OUTPUT MUST CONTAIN ONLY:
 
     chain = load_summarize_chain(
         llm,
-        chain_type="map_reduce",
-        map_prompt=map_prompt,
-        combine_prompt=reduce_prompt,
+        chain_type="stuff",
+        prompt=reduce_prompt,
         verbose=True
     )
 
