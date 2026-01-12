@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
-from langchain.text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 load_dotenv()
