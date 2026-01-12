@@ -14,7 +14,6 @@ from langchain_ollama import ChatOllama
 from fastapi.concurrency import run_in_threadpool
 
 SUMMARY_CACHE: Dict[str, dict] = {}
-
 def _cache_key(data: dict) -> str:
     raw = json.dumps(data, sort_keys=True, default=str)
     return hashlib.md5(raw.encode()).hexdigest()
@@ -330,7 +329,7 @@ async def chat_with_agent(request: Request):
 def warmup_llm():
     try:
         llm = ChatOllama(
-            model="mistral:7b-instruct",
+            model="phi3:mini",
             temperature=0
         )
         llm.invoke("READY")
