@@ -12,6 +12,7 @@ import hashlib
 from io import BytesIO
 from langchain_ollama import ChatOllama
 from fastapi.concurrency import run_in_threadpool
+from concurrent.futures import ThreadPoolExecutor
 
 SUMMARY_CACHE: Dict[str, dict] = {}
 def _cache_key(data: dict) -> str:
