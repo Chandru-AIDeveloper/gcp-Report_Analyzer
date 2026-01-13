@@ -254,8 +254,9 @@ FINAL OUTPUT MUST CONTAIN ONLY:
 
     chain = load_summarize_chain(
         llm,
-        chain_type="stuff",
-        prompt=reduce_prompt,
+        chain_type="map_reduce",
+        map_prompt=map_prompt,
+        combine_prompt=reduce_prompt,
         verbose=True
     )
 

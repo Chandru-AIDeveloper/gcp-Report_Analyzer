@@ -170,9 +170,38 @@ def process_summary(data: dict):
         return response
 
     # ----------------------------
-    # GENERATE SUMMARY (HEAVY)
+    # GENERATE EVERYTHING IN PARALLEL
     # ----------------------------
-    full_response = generate_summary(data)
+    with ThreadPoolExecutor() as executor:
+        # 1. Start tasks that only need raw 'data'
+        future_summary = executor.submit(generate_summary, data)
+        future_prediction = executor.submit(predict_kpis, data)
+        future_suggestions = executor.submit(get_recommendations, data)
+
+        # 2. Wait for summary (it's the bottleneck and needed for charts)
+        try:
+            full_response = future_summary.result()
+        except Exception as e:
+            return {"error": f"Summary generation failed: {str(e)}"}
+
+        # 3. Start chart generation (needs summary output)
+        future_chart = executor.submit(generate_charts, full_response)
+
+        # 4. Gather remaining results
+        try:
+            prediction = future_prediction.result()
+        except Exception as e:
+            prediction = {"error": str(e)}
+
+        try:
+            suggestions = future_suggestions.result()
+        except Exception as e:
+            suggestions = {"error": str(e)}
+
+        try:
+            chart_result = future_chart.result()
+        except Exception as e:
+            chart_result = {"error": str(e)}
 
     # ----------------------------
     # CONTEXT (LIMIT SIZE)
@@ -194,41 +223,19 @@ def process_summary(data: dict):
         summary_part = full_response.split("#### Chart Data:")[0].strip()
 
     # ----------------------------
-    # AUX PROCESSING (SAFE)
-    # ----------------------------
-    with ThreadPoolExecutor() as executor:
-        future_prediction = executor.submit(predict_kpis, data)
-        future_suggestions = executor.submit(get_recommendations, data)
-        future_chart = executor.submit(generate_charts, full_response)
-
-        try:
-            prediction = future_prediction.result()
-        except Exception as e:
-            prediction = {"error": str(e)}
-
-        try:
-            suggestions = future_suggestions.result()
-        except Exception as e:
-            suggestions = {"error": str(e)}
-
-    # ----------------------------
-    # CHART GENERATION (OPTIONAL)
+    # CHART POST-PROCESSING
     # ----------------------------
     chart_obj = None
     chart_base64 = None
     chart_error = None
 
-    try:
-        chart_result = generate_charts(full_response)
-        if chart_result and chart_result.get("chart"):
-            chart_obj = chart_result["chart"]
-            chart_base64 = base64.b64encode(
-                chart_obj.getvalue()
-            ).decode("utf-8")
-        elif chart_result and chart_result.get("error"):
-            chart_error = chart_result["error"]
-    except Exception as e:
-        chart_error = str(e)
+    if chart_result and chart_result.get("chart"):
+        chart_obj = chart_result["chart"]
+        chart_base64 = base64.b64encode(
+            chart_obj.getvalue()
+        ).decode("utf-8")
+    elif chart_result and chart_result.get("error"):
+        chart_error = chart_result["error"]
 
     # ----------------------------
     # CONTEXT STORE
