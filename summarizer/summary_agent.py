@@ -1,8 +1,8 @@
 import os
 import json
 from dotenv import load_dotenv
-from langchain_ollama import ChatOllama
-from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains.summarize import load_summarize_chain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -11,14 +11,13 @@ load_dotenv()
 
 def generate_summary(data):
     """
-    Generate a summary + suggestions + chart data using Ollama.
-    Handles large reports via the map-reduce approach.
+    Generate a summary + suggestions + chart data using OpenAI.
+    Uses the stuff approach for speed (responses under 5s).
     """
 
-    llm = ChatOllama(
-        model="phi3:mini",
-        temperature=0.3,
-        num_ctx=16384
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.3
     )
 
     # --- Input Handling ---
@@ -29,17 +28,12 @@ def generate_summary(data):
     else:
         raise ValueError("Input must include either 'raw_text' or 'json_data'.")
 
-    # --- Text Splitting ---
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=12000,
-        chunk_overlap=200
-    )
-    docs = [Document(page_content=chunk) for chunk in text_splitter.split_text(report_input)]
+    # --- Text Splitting & Truncation ---
+    # We truncate to ensure we stay within reasonable token limits for speed
+    report_input = report_input[:15000]
+    docs = [Document(page_content=report_input)]
 
-    # --- Case 1: Small text ---
-    if len(docs) == 1:
-
-        final_prompt_template = ChatPromptTemplate.from_template(
+    final_prompt_template = ChatPromptTemplate.from_template(
     """
     You are an **AI Insights Analyst**.
 
@@ -65,7 +59,7 @@ def generate_summary(data):
 
     ---------------------------------------------------------
     INPUT DATA:
-    {report}
+    {text}
     ---------------------------------------------------------
 
     Your output MUST contain ONLY the sections below,
@@ -157,107 +151,11 @@ def generate_summary(data):
     """
     )
 
-
-        chain = final_prompt_template | llm
-        response = chain.invoke({"report": report_input})
-        return response.content if hasattr(response, "content") else str(response)
-
-    # --- Case 2: Large text (Map-Reduce) ---
-
-    map_prompt_template = """
-    Summarize the following text or JSON section.
-    - Do NOT repeat raw JSON keys/values.
-    - Extract only meaningful insights.
-    - Identify patterns, frequent values, and structure.
-
-    "{text}"
-
-    SHORT SUMMARY:
-    """
-    map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
-
-    reduce_template = """
-You are an **AI Insight Synthesizer**.
-
-Your task is to merge multiple partial summaries into **one final, high-quality insight report**.
-The partial summaries are already derived from the same source data.
-
----------------------------------------------------------
-STRICT RULES (DO NOT VIOLATE)
----------------------------------------------------------
-1. DO NOT repeat or restate the original input or partial summaries
-2. DO NOT copy sentences verbatim from the summaries
-3. DO NOT hallucinate or invent values, categories, or trends
-4. DO NOT introduce new fields or assumptions
-5. DO NOT output raw JSON from the input
-6. Keep the output concise, analytical, and meaningful
-7. Only infer what is clearly supported by the summaries
-
----------------------------------------------------------
-PARTIAL SUMMARIES:
-{text}
----------------------------------------------------------
-
-Your output MUST strictly follow the format below.
-
-=========================================================
-#### Summary:
-=========================================================
-Provide **4–6 combined insights** that:
-- Merge overlapping ideas into stronger conclusions
-- Highlight **important keywords** in bold
-- Focus on patterns, trends, strengths, weaknesses, or gaps
-- Explain *what the combined data implies*, not what it contains
-- Avoid repeating similar points
-
-Each point must add **new analytical value**.
-
-=========================================================
-#### Suggestions:
-=========================================================
-Provide **3–5 actionable recommendations**:
-- Start each with a **strong action verb**
-- Bold **key terms**
-- Clearly relate to strengths, weaknesses, or improvement areas
-- Keep recommendations practical and specific
-
-Example starters:
-- **Improve** …
-- **Reduce** …
-- **Standardize** …
-- **Strengthen** …
-- **Optimize** …
-
-=========================================================
-#### Chart Data:
-=========================================================
-Only include **real, derivable categories** from the summaries.
-
-Rules:
-- NO placeholder values
-- NO assumptions
-- Use ONLY inferred counts or categories mentioned in summaries
-- Output ONLY in the format below (no extra text)
-
-chart_type: pie
-labels: ["Label A", "Label B", "Label C"]
-values: [10, 6, 3]
-
-=========================================================
-FINAL OUTPUT MUST CONTAIN ONLY:
-- Summary
-- Suggestions
-- Chart Data (if supported)
-=========================================================
-"""
-    reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"])
-
     chain = load_summarize_chain(
         llm,
-        chain_type="map_reduce",
-        map_prompt=map_prompt,
-        combine_prompt=reduce_prompt,
-        verbose=True
+        chain_type="stuff",
+        prompt=final_prompt_template,
+        verbose=False
     )
 
     response = chain.invoke({"input_documents": docs})

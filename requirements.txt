@@ -20,6 +20,7 @@ python-multipart
 langchain==0.3.7
 langchain-community==0.3.7
 langchain-core==0.3.51
+langchain-openai
 langchain-ollama==0.3.1
 sentence-transformers
 faiss-cpu

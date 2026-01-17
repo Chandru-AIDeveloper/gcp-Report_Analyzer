@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -9,8 +9,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 load_dotenv()
 
-llm = ChatOllama(
-    model="phi3:mini",
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
     temperature=0.2
 )
 

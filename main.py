@@ -10,7 +10,7 @@ import uuid
 import base64
 import hashlib
 from io import BytesIO
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from fastapi.concurrency import run_in_threadpool
 from concurrent.futures import ThreadPoolExecutor
 
@@ -336,14 +336,14 @@ async def chat_with_agent(request: Request):
 @app.on_event("startup")
 def warmup_llm():
     try:
-        llm = ChatOllama(
-            model="phi3:mini",
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
             temperature=0
         )
-        llm.invoke("READY")
-        print("LLM warm-up complete")
+        llm.invoke("Are you ready?")
+        print("LLM connection check complete")
     except Exception as e:
-        print("LLM warm-up failed:", e)
+        print("LLM connection check failed:", e)
 
 # ----------------------------
 # MAIN
