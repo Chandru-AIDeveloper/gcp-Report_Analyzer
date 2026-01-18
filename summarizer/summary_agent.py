@@ -106,30 +106,21 @@ def generate_summary(data):
     • Monitor …
 
     =========================================================
-    📊 CHART-FRIENDLY OBSERVATIONS
+    📊 CHART DATA
     =========================================================
     Only include this section if the data supports aggregation.
 
-    Present **clear, readable values** suitable for charts
-    (Pie / Bar / Line), but NOT in JSON format.
+    Present **structured data** suitable for charts (Pie / Bar / Line).
 
     Rules:
     - Use only inferred or counted values from the input
     - Do not guess or fabricate numbers
     - Keep labels simple and meaningful
 
-    Example:
-    Category Distribution:
-    - Approved → 18
-    - Pending → 7
-    - Rejected → 3
-
-    OR
-
-    Monthly Trend:
-    - January → High activity
-    - February → Moderate decline
-    - March → Sharp increase
+    Format:
+    chart_type: pie (or bar/line)
+    labels: ["Label 1", "Label 2"]
+    values: [10, 20]
 
     =========================================================
     FINAL OUTPUT FORMAT (TEXT ONLY)
@@ -145,9 +136,10 @@ def generate_summary(data):
     • Recommendation 2  
     • Recommendation 3  
 
-    #### Chart-Friendly Observations:
-    • Category A → Value  
-    • Category B → Value
+    #### Chart Data:
+    chart_type: pie
+    labels: ["Category A", "Category B"]
+    values: [10, 20]
     """
     )
 
