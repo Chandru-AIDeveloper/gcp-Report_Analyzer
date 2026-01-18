@@ -2,7 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain.chains.summarize import load_summarize_chain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -12,7 +12,7 @@ load_dotenv()
 def generate_summary(data):
     """
     Generate a summary + suggestions + chart data using OpenAI.
-    Uses the stuff approach for speed (responses under 5s).
+    Handles small text via Stuff and large text via Map-Reduce.
     """
 
     llm = ChatOpenAI(
@@ -28,12 +28,9 @@ def generate_summary(data):
     else:
         raise ValueError("Input must include either 'raw_text' or 'json_data'.")
 
-    # --- Text Splitting & Truncation ---
-    # We truncate to ensure we stay within reasonable token limits for speed
-    report_input = report_input[:15000]
-    docs = [Document(page_content=report_input)]
-
-    final_prompt_template = ChatPromptTemplate.from_template(
+    # --- Case 1: Small text (Stuff) ---
+    if len(report_input) < 10000:
+        final_prompt_template = ChatPromptTemplate.from_template(
     """
     You are an **AI Insights Analyst**.
 
@@ -52,18 +49,18 @@ def generate_summary(data):
     1. DO NOT repeat or rewrite the raw input data
     2. DO NOT list all fields, keys, or records
     3. DO NOT assume or invent missing data
-    4. DO NOT output JSON, markdown tables, or code (EXCEPT for the mandatory Chart Data section)
+    4. DO NOT output JSON, markdown tables, or code (EXCEPT for Chart Data)
     5. Interpret only what is present in the input
     6. Focus on **meaning, trends, patterns, and implications**
     7. Keep the output professional, concise, and insightful
 
     ---------------------------------------------------------
     INPUT DATA:
-    {text}
+    {report}
     ---------------------------------------------------------
 
     Your output MUST contain ONLY the sections below,
-    written in **plain readable text** (except for the structured Chart Data block).
+    written in **plain readable text**.
 
     =========================================================
     📄 SUMMARY – KEY INSIGHTS
@@ -108,19 +105,17 @@ def generate_summary(data):
     =========================================================
     📊 CHART DATA
     =========================================================
-    This section is MANDATORY if the data supports any form of categorization or numeric distribution.
-
-    Present **structured data** suitable for charts (Pie / Bar / Line).
+    Only include **real, derivable categories** from the data.
 
     Rules:
-    - Use only inferred or counted values from the input
-    - Do not guess or fabricate numbers
-    - Keep labels simple and meaningful
+    - NO placeholder values
+    - NO assumptions
+    - Use ONLY inferred counts or categories mentioned in summaries
+    - Output ONLY in the format below (no extra text)
 
-    Format:
-    chart_type: pie (or bar/line)
-    labels: ["Label 1", "Label 2"]
-    values: [10, 20]
+    chart_type: pie
+    labels: ["Label A", "Label B", "Label C"]
+    values: [10, 6, 3]
 
     =========================================================
     FINAL OUTPUT FORMAT (TEXT ONLY)
@@ -141,14 +136,112 @@ def generate_summary(data):
     labels: ["Category A", "Category B"]
     values: [10, 20]
     """
-    )
+        )
 
-    chain = load_summarize_chain(
-        llm,
-        chain_type="stuff",
-        prompt=final_prompt_template,
-        verbose=False
-    )
+        chain = final_prompt_template | llm
+        response = chain.invoke({"report": report_input})
+        return response.content if hasattr(response, "content") else str(response)
 
-    response = chain.invoke({"input_documents": docs})
-    return response["output_text"]
+    # --- Case 2: Large text (Map-Reduce) ---
+    else:
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=6000, chunk_overlap=500)
+        docs = [Document(page_content=x) for x in text_splitter.split_text(report_input)]
+
+        map_prompt_template = """
+        Summarize the following text or JSON section.
+        - Do NOT repeat raw JSON keys/values.
+        - Extract only meaningful insights.
+        - Identify patterns, frequent values, and structure.
+
+        "{text}"
+
+        SHORT SUMMARY:
+        """
+        map_prompt = PromptTemplate(template=map_prompt_template, input_variables=["text"])
+
+        reduce_template_str = """
+You are an **AI Insight Synthesizer**.
+
+Your task is to merge multiple partial summaries into **one final, high-quality insight report**.
+The partial summaries are already derived from the same source data.
+
+---------------------------------------------------------
+STRICT RULES (DO NOT VIOLATE)
+---------------------------------------------------------
+1. DO NOT repeat or restate the original input or partial summaries
+2. DO NOT copy sentences verbatim from the summaries
+3. DO NOT hallucinate or invent values, categories, or trends
+4. DO NOT introduce new fields or assumptions
+5. DO NOT output raw JSON from the input
+6. Keep the output concise, analytical, and meaningful
+7. Only infer what is clearly supported by the summaries
+
+---------------------------------------------------------
+PARTIAL SUMMARIES:
+{text}
+---------------------------------------------------------
+
+Your output MUST strictly follow the format below.
+
+=========================================================
+#### Summary:
+=========================================================
+Provide **4–6 combined insights** that:
+- Merge overlapping ideas into stronger conclusions
+- Highlight **important keywords** in bold
+- Focus on patterns, trends, strengths, weaknesses, or gaps
+- Explain *what the combined data implies*, not what it contains
+- Avoid repeating similar points
+
+Each point must add **new analytical value**.
+
+=========================================================
+#### Suggestions:
+=========================================================
+Provide **3–5 actionable recommendations**:
+- Start each with a **strong action verb**
+- Bold **key terms**
+- Clearly relate to strengths, weaknesses, or improvement areas
+- Keep recommendations practical and specific
+
+Example starters:
+- **Improve** …
+- **Reduce** …
+- **Standardize** …
+- **Strengthen** …
+- **Optimize** …
+
+=========================================================
+#### Chart Data:
+=========================================================
+Only include **real, derivable categories** from the summaries.
+
+Rules:
+- NO placeholder values
+- NO assumptions
+- Use ONLY inferred counts or categories mentioned in summaries
+- Output ONLY in the format below (no extra text)
+
+chart_type: pie
+labels: ["Label A", "Label B", "Label C"]
+values: [10, 6, 3]
+
+=========================================================
+FINAL OUTPUT MUST CONTAIN ONLY:
+- Summary
+- Suggestions
+- Chart Data (if supported)
+=========================================================
+"""
+        reduce_prompt = PromptTemplate(template=reduce_template_str, input_variables=["text"])
+
+        chain = load_summarize_chain(
+            llm=llm,
+            chain_type="map_reduce",
+            map_prompt=map_prompt,
+            combine_prompt=reduce_prompt,
+            verbose=False
+        )
+        
+        response = chain.invoke({"input_documents": docs})
+        return response["output_text"]
