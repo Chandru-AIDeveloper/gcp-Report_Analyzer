@@ -52,7 +52,7 @@ def generate_summary(data):
     1. DO NOT repeat or rewrite the raw input data
     2. DO NOT list all fields, keys, or records
     3. DO NOT assume or invent missing data
-    4. DO NOT output JSON, markdown tables, or code
+    4. DO NOT output JSON, markdown tables, or code (EXCEPT for the mandatory Chart Data section)
     5. Interpret only what is present in the input
     6. Focus on **meaning, trends, patterns, and implications**
     7. Keep the output professional, concise, and insightful
@@ -63,7 +63,7 @@ def generate_summary(data):
     ---------------------------------------------------------
 
     Your output MUST contain ONLY the sections below,
-    written in **plain readable text**.
+    written in **plain readable text** (except for the structured Chart Data block).
 
     =========================================================
     📄 SUMMARY – KEY INSIGHTS
@@ -108,7 +108,7 @@ def generate_summary(data):
     =========================================================
     📊 CHART DATA
     =========================================================
-    Only include this section if the data supports aggregation.
+    This section is MANDATORY if the data supports any form of categorization or numeric distribution.
 
     Present **structured data** suitable for charts (Pie / Bar / Line).
 
