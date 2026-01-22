@@ -49,7 +49,7 @@ def generate_charts(summary_text, save_path: str = None):
             return {"chart": None, "error": "Labels/values mismatch"}
 
         # Create chart
-        fig, ax = plt.subplots(figsize=(8, 6))
+        fig, ax = plt.subplots(figsize=(14, 8))
 
         if chart_type == 'pie':
             wedges, texts, autotexts = ax.pie(
